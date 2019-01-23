@@ -1,0 +1,16 @@
+plugins:
+  onebox_assistant_enabled:
+    default: true
+    client: true
+  onebox_assistant_api_base_address:
+    default: ''
+    client: true
+  onebox_assistant_api_base_query:
+    default: ''
+    client: true
+  onebox_assistant_api_options:
+    default: ''
+    client: true
+  onebox_assistant_api_key:
+    default: ''
+    client: true
