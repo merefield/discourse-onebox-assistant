@@ -1,4 +1,5 @@
-All code in this repository is Copyright 2019 by Robert Barrow
+All code in this repository is Copyright 2019 by Robert Barrow (aka 'merefield') except when clearly (but necessarily) brought over from the Discourse respository.  Copyright of that code is owned by Civilized Discourse Construction Kit, Inc. and used under license.
+
 
 This program is free software; you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
