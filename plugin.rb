@@ -19,7 +19,7 @@ after_initialize do
 
       fd = FinalDestination.new(url, ignore_redirects: ignore_redirects, ignore_hostnames: blacklisted_domains, force_get_hosts: force_get_hosts, preserve_fragment_url_hosts: preserve_fragment_url_hosts)
       uri = fd.resolve
-      return blank_onebox if blacklisted_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
+      return blank_onebox if (uri.blank? && !SiteSetting.onebox_assistant_enabled) || blacklisted_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
 
         options = {
           cache: {},
@@ -58,7 +58,7 @@ after_initialize do
 
       response = (fetch_response(url, nil, nil, headers) rescue nil)
 
-      if response.nil?
+      if response.nil? && SiteSetting.onebox_assistant_enabled
         retrieve_resty = MyResty.new
         initial_response = retrieve_resty.preview(url)
         response = initial_response[SiteSetting.onebox_assistant_api_page_source_field]
