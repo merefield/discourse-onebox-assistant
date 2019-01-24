@@ -4,4 +4,5 @@ en:
     onebox_assistant_api_base_address: "The base url for the onebox assistant api call that returns the full target source."
     onebox_assistant_api_base_query: "The base query e.g. ?url="
     onebox_assistant_api_options: "The rest of the url inc. querystring options."
+    onebox_assistant_api_page_source_field: "The name of the key in the returned json that contains the page source (e.g. 'source')"
     onebox_assistant_api_key: "Your private api key for the account (for which you may be billed for each call)."

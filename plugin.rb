@@ -61,7 +61,7 @@ after_initialize do
       if response.nil?
         retrieve_resty = MyResty.new
         initial_response = retrieve_resty.preview(url)
-        response = initial_response['source']
+        response = initial_response[SiteSetting.onebox_assistant_api_page_source_field]
       end
 
       doc = Nokogiri::HTML(response)
