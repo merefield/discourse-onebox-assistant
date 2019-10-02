@@ -1,6 +1,6 @@
 # name: discourse-onebox-assistant
 # about: provides alternative path for grabbing one-boxes when initial crawl fails
-# version: 1.0
+# version: 1.1
 # authors: merefield
 
 gem 'mime-types-data', '3.2018.0812'
@@ -15,25 +15,27 @@ after_initialize do
   Oneboxer.module_eval do
 
     def self.external_onebox(url)
+
       Rails.cache.fetch(onebox_cache_key(url), expires_in: 1.day) do
 
-      fd = FinalDestination.new(url, ignore_redirects: ignore_redirects, ignore_hostnames: blacklisted_domains, force_get_hosts: force_get_hosts, preserve_fragment_url_hosts: preserve_fragment_url_hosts)
-      uri = fd.resolve
-      return blank_onebox if (uri.blank? && !SiteSetting.onebox_assistant_enabled) || blacklisted_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
+        fd = FinalDestination.new(url, ignore_redirects: ignore_redirects, ignore_hostnames: blacklisted_domains, force_get_hosts: force_get_hosts, preserve_fragment_url_hosts: preserve_fragment_url_hosts)
+        uri = fd.resolve
+
+        return blank_onebox if (uri.blank? && !SiteSetting.onebox_assistant_enabled) || blacklisted_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
 
         options = {
           cache: {},
           max_width: 695,
-          sanitize_config: Sanitize::Config::DISCOURSE_ONEBOX
+          sanitize_config: Onebox::DiscourseOneboxSanitizeConfig::Config::DISCOURSE_ONEBOX
         }
 
-      options[:cookie] = fd.cookie if fd.cookie
+        options[:cookie] = fd.cookie if fd.cookie
 
         if Rails.env.development? && SiteSetting.port.to_i > 0
           Onebox.options = { allowed_ports: [80, 443, SiteSetting.port.to_i] }
         end
 
-        r = Onebox.preview(url.to_s, options)
+        r = Onebox.preview(uri.to_s, options)
 
         { onebox: r.to_s, preview: r&.placeholder_html.to_s }
       end
@@ -60,8 +62,14 @@ after_initialize do
 
       if response.nil? && SiteSetting.onebox_assistant_enabled
         retrieve_resty = MyResty.new
+        Rails.logger.info "ONEBOX ASSIST: the normal preview crawl returned nil, the url being sought from API is " + url
         initial_response = retrieve_resty.preview(url)
         response = initial_response[SiteSetting.onebox_assistant_api_page_source_field]
+        if response.nil?
+          Rails.logger.warning "ONEBOX ASSIST: the API returned nothing!!"
+        end
+      else
+        Rails.logger.info "ONEBOX ASSIST: result from direct crawl, API was not called"
       end
 
       doc = Nokogiri::HTML(response)
@@ -75,7 +83,6 @@ after_initialize do
           doc = Nokogiri::HTML(response) if response
         end
       end
-
       doc
     end
   end
