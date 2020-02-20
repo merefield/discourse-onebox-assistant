@@ -42,7 +42,7 @@ after_initialize do
   Onebox::Helpers.module_eval do
 
     IGNORE_CANONICAL_DOMAINS ||= ['www.instagram.com']
-    
+
     class MyResty
       include HTTParty
       base_uri SiteSetting.onebox_assistant_api_base_address
@@ -60,7 +60,6 @@ after_initialize do
 
       response = (fetch_response(url, nil, nil, headers) rescue nil)
 
-      byebug
       if response.nil? && SiteSetting.onebox_assistant_enabled
         retrieve_resty = MyResty.new
         Rails.logger.info "ONEBOX ASSIST: the normal preview crawl returned nil, the url being sought from API is " + url
