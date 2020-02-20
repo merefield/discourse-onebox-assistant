@@ -15,34 +15,34 @@ after_initialize do
   Oneboxer.module_eval do
 
     def self.external_onebox(url)
-
-      Rails.cache.fetch(onebox_cache_key(url), expires_in: 1.day) do
-
-        fd = FinalDestination.new(url, ignore_redirects: ignore_redirects, ignore_hostnames: blacklisted_domains, force_get_hosts: force_get_hosts, preserve_fragment_url_hosts: preserve_fragment_url_hosts)
+      Discourse.cache.fetch(onebox_cache_key(url), expires_in: 1.day) do
+        fd = FinalDestination.new(url,
+                                ignore_redirects: ignore_redirects,
+                                ignore_hostnames: blacklisted_domains,
+                                force_get_hosts: force_get_hosts,
+                                force_custom_user_agent_hosts: force_custom_user_agent_hosts,
+                                preserve_fragment_url_hosts: preserve_fragment_url_hosts)
         uri = fd.resolve
-
         return blank_onebox if (uri.blank? && !SiteSetting.onebox_assistant_enabled) || blacklisted_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
-
+  
         options = {
-          cache: {},
           max_width: 695,
           sanitize_config: Onebox::DiscourseOneboxSanitizeConfig::Config::DISCOURSE_ONEBOX
         }
-
+  
         options[:cookie] = fd.cookie if fd.cookie
-
-        if Rails.env.development? && SiteSetting.port.to_i > 0
-          Onebox.options = { allowed_ports: [80, 443, SiteSetting.port.to_i] }
-        end
-
+  
         r = Onebox.preview(uri.to_s, options)
-
+  
         { onebox: r.to_s, preview: r&.placeholder_html.to_s }
       end
     end
   end
 
   Onebox::Helpers.module_eval do
+
+    IGNORE_CANONICAL_DOMAINS ||= ['www.instagram.com']
+    
     class MyResty
       include HTTParty
       base_uri SiteSetting.onebox_assistant_api_base_address
@@ -60,6 +60,7 @@ after_initialize do
 
       response = (fetch_response(url, nil, nil, headers) rescue nil)
 
+      byebug
       if response.nil? && SiteSetting.onebox_assistant_enabled
         retrieve_resty = MyResty.new
         Rails.logger.info "ONEBOX ASSIST: the normal preview crawl returned nil, the url being sought from API is " + url
@@ -73,12 +74,15 @@ after_initialize do
       end
 
       doc = Nokogiri::HTML(response)
+      uri = URI(url)
 
-      ignore_canonical = doc.at('meta[property="og:ignore_canonical"]')
-      unless ignore_canonical && ignore_canonical['content'].to_s == 'true'
+      ignore_canonical_tag = doc.at('meta[property="og:ignore_canonical"]')
+      should_ignore_canonical = IGNORE_CANONICAL_DOMAINS.map { |hostname| uri.hostname.match?(hostname) }.any?
+      
+      unless (ignore_canonical_tag && ignore_canonical_tag['content'].to_s == 'true') || should_ignore_canonical
         # prefer canonical link
         canonical_link = doc.at('//link[@rel="canonical"]/@href')
-        if canonical_link && "#{URI(canonical_link).host}#{URI(canonical_link).path}" != "#{URI(url).host}#{URI(url).path}"
+        if canonical_link && "#{URI(canonical_link).host}#{URI(canonical_link).path}" != "#{uri.host}#{uri.path}"
           response = (fetch_response(canonical_link, nil, nil, headers) rescue nil)
           doc = Nokogiri::HTML(response) if response
         end
