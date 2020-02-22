@@ -3,6 +3,8 @@
 # version: 2.0
 # authors: merefield
 
+gem 'mime-types-data', '3.2019.1009'
+gem 'mime-types', '3.3.1'
 gem 'httparty', '0.17.3'
 
 require 'net/http'
