@@ -3,6 +3,8 @@
 # version: 2.0
 # authors: merefield
 
+gem 'httparty', '0.17.3'
+
 require 'net/http'
 
 enabled_site_setting :onebox_assistant_enabled
