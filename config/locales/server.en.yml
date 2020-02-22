@@ -1,6 +1,7 @@
 en:
   site_settings:
     onebox_assistant_enabled: "Enable the onebox assistant."
+    onebox_assistant_always_use_proxy: "Always use the proxy crawl regardless of direct response"
     onebox_assistant_api_base_address: "The base url for the onebox assistant api call that returns the full target source."
     onebox_assistant_api_base_query: "The base query e.g. ?url="
     onebox_assistant_api_options: "The rest of the url inc. querystring options."

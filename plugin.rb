@@ -1,21 +1,18 @@
 # name: discourse-onebox-assistant
 # about: provides alternative path for grabbing one-boxes when initial crawl fails
-# version: 1.1
+# version: 2.0
 # authors: merefield
 
-gem 'mime-types-data', '3.2018.0812'
-gem 'mime-types', '3.2.2'
-gem 'httparty', '0.16.3'
 require 'net/http'
 
 enabled_site_setting :onebox_assistant_enabled
 
 after_initialize do
-
   Oneboxer.module_eval do
 
     def self.external_onebox(url)
       Discourse.cache.fetch(onebox_cache_key(url), expires_in: 1.day) do
+        
         fd = FinalDestination.new(url,
                                 ignore_redirects: ignore_redirects,
                                 ignore_hostnames: blacklisted_domains,
@@ -32,7 +29,7 @@ after_initialize do
   
         options[:cookie] = fd.cookie if fd.cookie
   
-        r = Onebox.preview(uri.to_s, options)
+        r = Onebox.preview(SiteSetting.onebox_assistant_enabled ? url : uri.to_s, options)
   
         { onebox: r.to_s, preview: r&.placeholder_html.to_s }
       end
@@ -60,9 +57,9 @@ after_initialize do
 
       response = (fetch_response(url, nil, nil, headers) rescue nil)
 
-      if response.nil? && SiteSetting.onebox_assistant_enabled
+      if SiteSetting.onebox_assistant_always_use_proxy || (response.nil? && SiteSetting.onebox_assistant_enabled)
         retrieve_resty = MyResty.new
-        Rails.logger.info "ONEBOX ASSIST: the normal preview crawl returned nil, the url being sought from API is " + url
+        Rails.logger.info "ONEBOX ASSIST: the url being sought from API is " + url
         initial_response = retrieve_resty.preview(url)
         response = initial_response[SiteSetting.onebox_assistant_api_page_source_field]
         if response.nil?
@@ -73,19 +70,23 @@ after_initialize do
       end
 
       doc = Nokogiri::HTML(response)
-      uri = URI(url)
 
-      ignore_canonical_tag = doc.at('meta[property="og:ignore_canonical"]')
-      should_ignore_canonical = IGNORE_CANONICAL_DOMAINS.map { |hostname| uri.hostname.match?(hostname) }.any?
-      
-      unless (ignore_canonical_tag && ignore_canonical_tag['content'].to_s == 'true') || should_ignore_canonical
-        # prefer canonical link
-        canonical_link = doc.at('//link[@rel="canonical"]/@href')
-        if canonical_link && "#{URI(canonical_link).host}#{URI(canonical_link).path}" != "#{uri.host}#{uri.path}"
-          response = (fetch_response(canonical_link, nil, nil, headers) rescue nil)
-          doc = Nokogiri::HTML(response) if response
+      if !SiteSetting.onebox_assistant_enabled
+        uri = URI(url)
+
+        ignore_canonical_tag = doc.at('meta[property="og:ignore_canonical"]')
+        should_ignore_canonical = IGNORE_CANONICAL_DOMAINS.map { |hostname| uri.hostname.match?(hostname) }.any?
+
+        unless (ignore_canonical_tag && ignore_canonical_tag['content'].to_s == 'true') || should_ignore_canonical
+          # prefer canonical link
+          canonical_link = doc.at('//link[@rel="canonical"]/@href')
+          if canonical_link && "#{URI(canonical_link).host}#{URI(canonical_link).path}" != "#{uri.host}#{uri.path}"
+            response = (fetch_response(canonical_link, nil, nil, headers) rescue nil)
+            doc = Nokogiri::HTML(response) if response
+          end
         end
       end
+
       doc
     end
   end

@@ -2,6 +2,9 @@ plugins:
   onebox_assistant_enabled:
     default: true
     client: false
+  onebox_assistant_always_use_proxy:
+    default: false
+    client: false
   onebox_assistant_api_base_address:
     default: ''
     client: false
