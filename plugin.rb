@@ -24,8 +24,13 @@ after_initialize do
                                 force_custom_user_agent_hosts: force_custom_user_agent_hosts,
                                 preserve_fragment_url_hosts: preserve_fragment_url_hosts)
         uri = fd.resolve
-        return blank_onebox if (uri.blank? && !SiteSetting.onebox_assistant_enabled) || blacklisted_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
-  
+
+        unless SiteSetting.onebox_assistant_always_use_proxy
+          return blank_onebox if (uri.blank? && !SiteSetting.onebox_assistant_enabled) || blacklisted_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
+        else
+          uri = url
+        end
+
         options = {
           max_width: 695,
           sanitize_config: Onebox::DiscourseOneboxSanitizeConfig::Config::DISCOURSE_ONEBOX
@@ -52,8 +57,7 @@ after_initialize do
         base_query=SiteSetting.onebox_assistant_api_base_query + url
         query = base_query + SiteSetting.onebox_assistant_api_options
         key = SiteSetting.onebox_assistant_api_key
-        response = self.class.get(query, headers: {'x-api-key' => key})
-        response
+        self.class.get(query, headers: {'x-api-key' => key})
       end
     end
 
