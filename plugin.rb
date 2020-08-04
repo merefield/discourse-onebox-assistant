@@ -19,27 +19,28 @@ after_initialize do
         
         fd = FinalDestination.new(url,
                                 ignore_redirects: ignore_redirects,
-                                ignore_hostnames: blacklisted_domains,
+                                ignore_hostnames: blocked_domains,
                                 force_get_hosts: force_get_hosts,
                                 force_custom_user_agent_hosts: force_custom_user_agent_hosts,
                                 preserve_fragment_url_hosts: preserve_fragment_url_hosts)
         uri = fd.resolve
 
         unless SiteSetting.onebox_assistant_always_use_proxy
-          return blank_onebox if (uri.blank? && !SiteSetting.onebox_assistant_enabled) || blacklisted_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
+          return blank_onebox if (uri.blank? && !SiteSetting.onebox_assistant_enabled) || blocked_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
         else
           uri = url
         end
 
         options = {
           max_width: 695,
-          sanitize_config: Onebox::DiscourseOneboxSanitizeConfig::Config::DISCOURSE_ONEBOX
+          sanitize_config: Onebox::DiscourseOneboxSanitizeConfig::Config::DISCOURSE_ONEBOX,
+          hostname: GlobalSetting.hostname
         }
-  
+
         options[:cookie] = fd.cookie if fd.cookie
-  
+
         r = Onebox.preview(SiteSetting.onebox_assistant_enabled ? url : uri.to_s, options)
-  
+
         { onebox: r.to_s, preview: r&.placeholder_html.to_s }
       end
     end
