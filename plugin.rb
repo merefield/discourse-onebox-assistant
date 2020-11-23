@@ -26,6 +26,20 @@ after_initialize do
         uri = fd.resolve
 
         unless SiteSetting.onebox_assistant_always_use_proxy
+
+          if fd.status != :resolved
+            args = { link: url }
+            if fd.status == :invalid_address
+              args[:error_message] = I18n.t("errors.onebox.invalid_address", hostname: fd.hostname)
+            elsif fd.status_code
+              args[:error_message] = I18n.t("errors.onebox.error_response", status_code: fd.status_code)
+            end
+
+            error_box = blank_onebox
+            error_box[:preview] = preview_error_onebox(args)
+            return error_box
+          end
+
           return blank_onebox if (uri.blank? && !SiteSetting.onebox_assistant_enabled) || blocked_domains.map { |hostname| uri.hostname.match?(hostname) }.any?
         else
           uri = url
@@ -34,14 +48,39 @@ after_initialize do
         options = {
           max_width: 695,
           sanitize_config: Onebox::DiscourseOneboxSanitizeConfig::Config::DISCOURSE_ONEBOX,
-          hostname: GlobalSetting.hostname
+          allowed_iframe_origins: allowed_iframe_origins,
+          hostname: GlobalSetting.hostname,
+          facebook_app_access_token: SiteSetting.facebook_app_access_token,
         }
 
         options[:cookie] = fd.cookie if fd.cookie
 
         r = Onebox.preview(SiteSetting.onebox_assistant_enabled ? url : uri.to_s, options)
 
-        { onebox: r.to_s, preview: r&.placeholder_html.to_s }
+        result = { onebox: r.to_s, preview: r&.placeholder_html.to_s }
+
+        # NOTE: Call r.errors after calling placeholder_html
+        if r.errors.any?
+          missing_attributes = r.errors.keys.map(&:to_s).sort.join(I18n.t("word_connector.comma"))
+          error_message = I18n.t("errors.onebox.missing_data", missing_attributes: missing_attributes, count: r.errors.keys.size)
+          args = r.data.merge(error_message: error_message)
+
+          if result[:preview].blank?
+            result[:preview] = preview_error_onebox(args)
+          else
+            doc = Nokogiri::HTML5::fragment(result[:preview])
+            aside = doc.at('aside')
+
+            if aside
+              # Add an error message to the preview that was returned
+              error_fragment = preview_error_onebox_fragment(args)
+              aside.add_child(error_fragment)
+              result[:preview] = doc.to_html
+            end
+          end
+        end
+
+        result
       end
     end
   end
