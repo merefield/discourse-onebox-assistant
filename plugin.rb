@@ -111,7 +111,7 @@ after_initialize do
         initial_response = retrieve_resty.preview(url)
         response = initial_response[SiteSetting.onebox_assistant_api_page_source_field]
         if response.nil?
-          Rails.logger.warning "ONEBOX ASSIST: the API returned nothing!!"
+          Rails.logger.warn "ONEBOX ASSIST: the API returned nothing!!"
         end
       else
         Rails.logger.info "ONEBOX ASSIST: result from direct crawl, API was not called"
