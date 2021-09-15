@@ -15,21 +15,14 @@ enabled_site_setting :onebox_assistant_enabled
 after_initialize do
   Oneboxer.module_eval do
 
-    def self.external_onebox(url)
-      Discourse.cache.fetch(onebox_cache_key(url), expires_in: 1.day) do
-        fd_options = {
-          ignore_redirects: ignore_redirects,
-          ignore_hostnames: blocked_domains,
-          force_get_hosts: force_get_hosts,
-          force_custom_user_agent_hosts: force_custom_user_agent_hosts,
-          preserve_fragment_url_hosts: preserve_fragment_url_hosts
-        }
+    self.external_onebox(url, available_strategies = nil)
+    Discourse.cache.fetch(onebox_cache_key(url), expires_in: 1.day) do
+      uri = URI(url)
+      available_strategies ||= Oneboxer.ordered_strategies(uri.hostname)
+      strategy = available_strategies.shift
 
-        user_agent_override = SiteSetting.cache_onebox_user_agent if Oneboxer.cache_response_body?(url) && SiteSetting.cache_onebox_user_agent.present?
-        fd_options[:default_user_agent] = user_agent_override if user_agent_override
-
-        fd = FinalDestination.new(url, fd_options)
-        uri = fd.resolve
+      fd = FinalDestination.new(url, get_final_destination_options(url, strategy))
+      uri = fd.resolve
 
         unless SiteSetting.onebox_assistant_always_use_proxy
 
@@ -37,6 +30,9 @@ after_initialize do
             args = { link: url }
             if fd.status == :invalid_address
               args[:error_message] = I18n.t("errors.onebox.invalid_address", hostname: fd.hostname)
+            elsif (fd.status_code || uri.nil?) && available_strategies.present?
+              # Try a different oneboxing strategy, if we have any options left:
+              return external_onebox(url, available_strategies)
             elsif fd.status_code
               args[:error_message] = I18n.t("errors.onebox.error_response", status_code: fd.status_code)
             end
@@ -58,43 +54,50 @@ after_initialize do
           hostname: GlobalSetting.hostname,
           facebook_app_access_token: SiteSetting.facebook_app_access_token,
           disable_media_download_controls: SiteSetting.disable_onebox_media_download_controls,
-          body_cacher: self
+          body_cacher: self,
+          content_type: fd.content_type
         }
 
         onebox_options[:cookie] = fd.cookie if fd.cookie
+
+        user_agent_override = SiteSetting.cache_onebox_user_agent if Oneboxer.cache_response_body?(url) && SiteSetting.cache_onebox_user_agent.present?
         onebox_options[:user_agent] = user_agent_override if user_agent_override
 
         r = Onebox.preview(SiteSetting.onebox_assistant_enabled ? url : uri.to_s, onebox_options)
 
-        result = { onebox: r.to_s, preview: r&.placeholder_html.to_s }
+        result = {
+          onebox: WordWatcher.censor(r.to_s),
+          preview: WordWatcher.censor(r&.placeholder_html.to_s)
+        }
 
-        # NOTE: Call r.errors after calling placeholder_html
-        if r.errors.any?
-          error_keys = r.errors.keys
-          skip_if_only_error = [:image]
-          unless error_keys.length == 1 && skip_if_only_error.include?(error_keys.first)
-            missing_attributes = error_keys.map(&:to_s).sort.join(I18n.t("word_connector.comma"))
-            error_message = I18n.t("errors.onebox.missing_data", missing_attributes: missing_attributes, count: error_keys.size)
-            args = r.data.merge(error_message: error_message)
-  
-            if result[:preview].blank?
-              result[:preview] = preview_error_onebox(args)
-            else
-              doc = Nokogiri::HTML5::fragment(result[:preview])
-              aside = doc.at('aside')
-  
-              if aside
-                # Add an error message to the preview that was returned
-                error_fragment = preview_error_onebox_fragment(args)
-                aside.add_child(error_fragment)
-                result[:preview] = doc.to_html
-              end
+      # NOTE: Call r.errors after calling placeholder_html
+      if r.errors.any?
+        error_keys = r.errors.keys
+        skip_if_only_error = [:image]
+        unless error_keys.length == 1 && skip_if_only_error.include?(error_keys.first)
+          missing_attributes = error_keys.map(&:to_s).sort.join(I18n.t("word_connector.comma"))
+          error_message = I18n.t("errors.onebox.missing_data", missing_attributes: missing_attributes, count: error_keys.size)
+          args = r.verified_data.merge(error_message: error_message)
+
+          if result[:preview].blank?
+            result[:preview] = preview_error_onebox(args)
+          else
+            doc = Nokogiri::HTML5::fragment(result[:preview])
+            aside = doc.at('aside')
+
+            if aside
+              # Add an error message to the preview that was returned
+              error_fragment = preview_error_onebox_fragment(args)
+              aside.add_child(error_fragment)
+              result[:preview] = doc.to_html
             end
           end
         end
-
-        result
       end
+
+      Oneboxer.cache_preferred_strategy(uri.hostname, strategy)
+
+      result
     end
   end
 
