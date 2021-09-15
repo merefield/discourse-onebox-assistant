@@ -24,8 +24,7 @@ after_initialize do
         fd = FinalDestination.new(url, get_final_destination_options(url, strategy))
         uri = fd.resolve
 
-        unless SiteSetting.onebox_assistant_always_use_proxy
-
+        unless SiteSetting.onebox_assistant_enabled && SiteSetting.onebox_assistant_always_use_proxy
           if fd.status != :resolved
             args = { link: url }
             if fd.status == :invalid_address
@@ -43,8 +42,6 @@ after_initialize do
           end
 
           return blank_onebox if uri.blank? || blocked_domains.any? { |hostname| uri.hostname.match?(hostname) }
-        else
-          uri = url
         end
 
         onebox_options = {
@@ -63,7 +60,7 @@ after_initialize do
         user_agent_override = SiteSetting.cache_onebox_user_agent if Oneboxer.cache_response_body?(url) && SiteSetting.cache_onebox_user_agent.present?
         onebox_options[:user_agent] = user_agent_override if user_agent_override
 
-        r = Onebox.preview(SiteSetting.onebox_assistant_enabled ? url : uri.to_s, onebox_options)
+        r = Onebox.preview(SiteSetting.onebox_assistant_enabled && SiteSetting.onebox_assistant_always_use_proxy ? url : uri.to_s, onebox_options)
 
         result = {
           onebox: WordWatcher.censor(r.to_s),
@@ -95,7 +92,7 @@ after_initialize do
           end
         end
 
-      Oneboxer.cache_preferred_strategy(uri.hostname, strategy)
+        Oneboxer.cache_preferred_strategy(uri.hostname, strategy)
 
         result
       end
