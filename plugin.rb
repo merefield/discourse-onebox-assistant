@@ -15,14 +15,14 @@ enabled_site_setting :onebox_assistant_enabled
 after_initialize do
   Oneboxer.module_eval do
 
-    self.external_onebox(url, available_strategies = nil)
-    Discourse.cache.fetch(onebox_cache_key(url), expires_in: 1.day) do
-      uri = URI(url)
-      available_strategies ||= Oneboxer.ordered_strategies(uri.hostname)
-      strategy = available_strategies.shift
+    def self.external_onebox(url, available_strategies = nil)
+      Discourse.cache.fetch(onebox_cache_key(url), expires_in: 1.day) do
+        uri = URI(url)
+        available_strategies ||= Oneboxer.ordered_strategies(uri.hostname)
+        strategy = available_strategies.shift
 
-      fd = FinalDestination.new(url, get_final_destination_options(url, strategy))
-      uri = fd.resolve
+        fd = FinalDestination.new(url, get_final_destination_options(url, strategy))
+        uri = fd.resolve
 
         unless SiteSetting.onebox_assistant_always_use_proxy
 
@@ -70,34 +70,35 @@ after_initialize do
           preview: WordWatcher.censor(r&.placeholder_html.to_s)
         }
 
-      # NOTE: Call r.errors after calling placeholder_html
-      if r.errors.any?
-        error_keys = r.errors.keys
-        skip_if_only_error = [:image]
-        unless error_keys.length == 1 && skip_if_only_error.include?(error_keys.first)
-          missing_attributes = error_keys.map(&:to_s).sort.join(I18n.t("word_connector.comma"))
-          error_message = I18n.t("errors.onebox.missing_data", missing_attributes: missing_attributes, count: error_keys.size)
-          args = r.verified_data.merge(error_message: error_message)
+        # NOTE: Call r.errors after calling placeholder_html
+        if r.errors.any?
+          error_keys = r.errors.keys
+          skip_if_only_error = [:image]
+          unless error_keys.length == 1 && skip_if_only_error.include?(error_keys.first)
+            missing_attributes = error_keys.map(&:to_s).sort.join(I18n.t("word_connector.comma"))
+            error_message = I18n.t("errors.onebox.missing_data", missing_attributes: missing_attributes, count: error_keys.size)
+            args = r.verified_data.merge(error_message: error_message)
 
-          if result[:preview].blank?
-            result[:preview] = preview_error_onebox(args)
-          else
-            doc = Nokogiri::HTML5::fragment(result[:preview])
-            aside = doc.at('aside')
+            if result[:preview].blank?
+              result[:preview] = preview_error_onebox(args)
+            else
+              doc = Nokogiri::HTML5::fragment(result[:preview])
+              aside = doc.at('aside')
 
-            if aside
-              # Add an error message to the preview that was returned
-              error_fragment = preview_error_onebox_fragment(args)
-              aside.add_child(error_fragment)
-              result[:preview] = doc.to_html
+              if aside
+                # Add an error message to the preview that was returned
+                error_fragment = preview_error_onebox_fragment(args)
+                aside.add_child(error_fragment)
+                result[:preview] = doc.to_html
+              end
             end
           end
         end
-      end
 
       Oneboxer.cache_preferred_strategy(uri.hostname, strategy)
 
-      result
+        result
+      end
     end
   end
 
@@ -125,6 +126,7 @@ after_initialize do
         Rails.logger.info "ONEBOX ASSIST: the url being sought from API is " + url
         initial_response = retrieve_resty.preview(url)
         response = initial_response[SiteSetting.onebox_assistant_api_page_source_field]
+        byebug
         if response.nil?
           Rails.logger.warn "ONEBOX ASSIST: the API returned nothing!!"
         end
@@ -132,25 +134,7 @@ after_initialize do
         Rails.logger.info "ONEBOX ASSIST: result from direct crawl, API was not called"
       end
 
-      doc = Nokogiri::HTML(response)
-
-      if !SiteSetting.onebox_assistant_enabled
-        uri = Addressable::URI.parse(url)
-
-        ignore_canonical_tag = doc.at('meta[property="og:ignore_canonical"]')
-        should_ignore_canonical = IGNORE_CANONICAL_DOMAINS.map { |hostname| uri.hostname.match?(hostname) }.any?
-
-        unless (ignore_canonical_tag && ignore_canonical_tag['content'].to_s == 'true') || should_ignore_canonical
-          # prefer canonical link
-          canonical_uri = Addressable::URI.parse(canonical_link)
-          if canonical_link && "#{canonical_uri.host}#{canonical_uri.path}" != "#{uri.host}#{uri.path}"
-            response = (fetch_response(canonical_uri.to_s, headers: headers, body_cacher: body_cacher) rescue nil)
-            doc = Nokogiri::HTML(response) if response
-          end
-        end
-      end
-
-      doc
+      Nokogiri::HTML(response)
     end
   end
 end
