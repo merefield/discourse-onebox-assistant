@@ -126,7 +126,6 @@ after_initialize do
         Rails.logger.info "ONEBOX ASSIST: the url being sought from API is " + url
         initial_response = retrieve_resty.preview(url)
         response = initial_response[SiteSetting.onebox_assistant_api_page_source_field]
-        byebug
         if response.nil?
           Rails.logger.warn "ONEBOX ASSIST: the API returned nothing!!"
         end
