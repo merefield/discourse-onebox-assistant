@@ -1,6 +1,6 @@
 # name: discourse-onebox-assistant
 # about: provides alternative path for grabbing one-boxes when initial crawl fails
-# version: 2.0.3
+# version: 2.0.4
 # authors: merefield
 # url: https://github.com/merefield/discourse-onebox-assistant
 
