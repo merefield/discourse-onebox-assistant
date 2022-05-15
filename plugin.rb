@@ -1,6 +1,6 @@
 # name: discourse-onebox-assistant
 # about: provides alternative path for grabbing one-boxes when initial crawl fails
-# version: 2.0.4
+# version: 3.0.0
 # authors: merefield
 # url: https://github.com/merefield/discourse-onebox-assistant
 
@@ -15,7 +15,7 @@ enabled_site_setting :onebox_assistant_enabled
 after_initialize do
   %w[
     ../discourse/lib/oneboxer_edits.rb
-    ../onebox/lib/onebox/helpers_edits.rb
+    ../discourse/lib/onebox/helpers_edits.rb
   ].each do |path|
     load File.expand_path(path, __FILE__)
   end
