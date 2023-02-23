@@ -6,7 +6,7 @@
 
 gem 'mime-types-data', '3.2019.1009'
 gem 'mime-types', '3.3.1'
-gem 'httparty', '0.17.3'
+gem 'httparty', '0.21.0'
 
 require 'net/http'
 
