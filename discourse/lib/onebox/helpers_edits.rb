@@ -14,7 +14,14 @@ Onebox::Helpers.module_eval do
   end
 
   def self.fetch_html_doc(url, headers = nil, body_cacher = nil)
-    response = (fetch_response(url, headers: headers, body_cacher: body_cacher) rescue nil)
+    response =
+      (
+        begin
+          fetch_response(url, headers: headers, body_cacher: body_cacher)
+        rescue StandardError
+          nil
+        end
+      )
 
     proxy_service = ProxyService.new
 
@@ -28,20 +35,34 @@ Onebox::Helpers.module_eval do
       Rails.logger.info "ONEBOX ASSIST: result from direct crawl, API was not called"
     end
 
-    doc = Nokogiri::HTML(response)
+    doc = Nokogiri.HTML(response)
     uri = Addressable::URI.parse(url)
 
     ignore_canonical_tag = doc.at('meta[property="og:ignore_canonical"]')
-    should_ignore_canonical = IGNORE_CANONICAL_DOMAINS.map { |hostname| uri.hostname.match?(hostname) }.any?
+    should_ignore_canonical =
+      IGNORE_CANONICAL_DOMAINS.map { |hostname| uri.hostname.match?(hostname) }.any?
 
-    unless (ignore_canonical_tag && ignore_canonical_tag['content'].to_s == 'true') || should_ignore_canonical
+    if !(ignore_canonical_tag && ignore_canonical_tag["content"].to_s == "true") &&
+        !should_ignore_canonical
       # prefer canonical link
       canonical_link = doc.at('//link[@rel="canonical"]/@href')
       canonical_uri = Addressable::URI.parse(canonical_link)
-      if canonical_link && canonical_uri && "#{canonical_uri.host}#{canonical_uri.path}" != "#{uri.host}#{uri.path}"
-        uri = FinalDestination.new(canonical_link, Oneboxer.get_final_destination_options(canonical_link)).resolve
+      if canonical_link && canonical_uri &&
+        "#{canonical_uri.host}#{canonical_uri.path}" != "#{uri.host}#{uri.path}"
+        uri =
+          FinalDestination.new(
+            canonical_link,
+            Oneboxer.get_final_destination_options(canonical_link),
+          ).resolve
         if uri.present?
-          response = (fetch_response(uri.to_s, headers: headers, body_cacher: body_cacher) rescue nil)
+          response =
+            (
+              begin
+                fetch_response(uri.to_s, headers: headers, body_cacher: body_cacher)
+              rescue StandardError
+                nil
+              end
+            )
 
           if SiteSetting.onebox_assistant_enabled && (SiteSetting.onebox_assistant_always_use_proxy || response.nil?)
             # retrieve_restful = CallProxy.new
@@ -55,7 +76,7 @@ Onebox::Helpers.module_eval do
             Rails.logger.info "ONEBOX ASSIST: result from direct crawl, API was not called"
           end
 
-          doc = Nokogiri::HTML(response) if response
+          doc = Nokogiri.HTML(response) if response
         end
       end
     end
