@@ -1,5 +1,5 @@
 Onebox::Helpers.module_eval do
-  IGNORE_CANONICAL_DOMAINS ||= ['www.instagram.com', 'medium.com', 'youtube.com']
+  IGNORE_CANONICAL_DOMAINS = %w[www.instagram.com medium.com youtube.com]
 
   class ProxyService
     include HTTParty
@@ -13,11 +13,11 @@ Onebox::Helpers.module_eval do
     end
   end
 
-  def self.fetch_html_doc(url, headers = nil, body_cacher = nil)
+  def self.fetch_html_doc(url, headers = nil)
     response =
       (
         begin
-          fetch_response(url, headers: headers, body_cacher: body_cacher)
+          fetch_response(url, headers:, raise_error_when_response_too_large: false)
         rescue StandardError
           nil
         end
@@ -36,7 +36,7 @@ Onebox::Helpers.module_eval do
     end
 
     doc = Nokogiri.HTML(response)
-    uri = Addressable::URI.parse(url)
+    uri = Addressable::URI.parse(url).normalize!
 
     ignore_canonical_tag = doc.at('meta[property="og:ignore_canonical"]')
     should_ignore_canonical =
@@ -46,19 +46,19 @@ Onebox::Helpers.module_eval do
         !should_ignore_canonical
       # prefer canonical link
       canonical_link = doc.at('//link[@rel="canonical"]/@href')
-      canonical_uri = Addressable::URI.parse(canonical_link)
+      canonical_uri = Addressable::URI.parse(canonical_link)&.normalize!
       if canonical_link && canonical_uri &&
         "#{canonical_uri.host}#{canonical_uri.path}" != "#{uri.host}#{uri.path}"
         uri =
           FinalDestination.new(
-            canonical_link,
-            Oneboxer.get_final_destination_options(canonical_link),
+            canonical_uri,
+            Oneboxer.get_final_destination_options(canonical_uri),
           ).resolve
         if uri.present?
           response =
             (
               begin
-                fetch_response(uri.to_s, headers: headers, body_cacher: body_cacher)
+                fetch_response(uri.to_s, headers:, raise_error_when_response_too_large: false)
               rescue StandardError
                 nil
               end
