@@ -50,16 +50,10 @@ Oneboxer.module_eval do
         hostname: GlobalSetting.hostname,
         facebook_app_access_token: SiteSetting.facebook_app_access_token,
         disable_media_download_controls: SiteSetting.disable_onebox_media_download_controls,
-        body_cacher: self,
         content_type: fd.content_type,
       }
 
       onebox_options[:cookie] = fd.cookie if fd.cookie
-
-      user_agent_override = SiteSetting.cache_onebox_user_agent if Oneboxer.cache_response_body?(
-        url,
-      ) && SiteSetting.cache_onebox_user_agent.present?
-      onebox_options[:user_agent] = user_agent_override if user_agent_override
 
       preview_result = Onebox.preview(SiteSetting.onebox_assistant_enabled && SiteSetting.onebox_assistant_always_use_proxy ? url : uri.to_s, onebox_options)
 
