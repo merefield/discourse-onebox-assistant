@@ -1,11 +1,11 @@
 # name: discourse-onebox-assistant
 # about: provides alternative path for grabbing one-boxes when initial crawl fails
-# version: 3.0.3
+# version: 3.0.4
 # authors: merefield
 # url: https://github.com/merefield/discourse-onebox-assistant
 
-gem 'mime-types-data', '3.2019.1009'
-gem 'mime-types', '3.3.1'
+gem 'mime-types-data', '3.2025.0422', { require: false }
+gem 'mime-types', '3.6.2', { require: false }
 gem 'httparty', '0.21.0'
 
 require 'net/http'
