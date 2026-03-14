@@ -43,6 +43,73 @@ RSpec.describe Onebox::Helpers do
     SiteSetting.onebox_assistant_api_key = "secret"
   end
 
+  describe ".assistant_use_proxy_for_response?" do
+    it "returns false when the assistant is disabled" do
+      SiteSetting.onebox_assistant_enabled = false
+
+      expect(
+        Onebox::Helpers.send(:assistant_use_proxy_for_response?, nil)
+      ).to eq(false)
+    end
+
+    it "returns true when the direct response is missing" do
+      expect(
+        Onebox::Helpers.send(:assistant_use_proxy_for_response?, nil)
+      ).to eq(true)
+    end
+
+    it "returns true when proxy mode is forced" do
+      SiteSetting.onebox_assistant_always_use_proxy = true
+
+      expect(
+        Onebox::Helpers.send(
+          :assistant_use_proxy_for_response?,
+          "<html></html>"
+        )
+      ).to eq(true)
+    end
+  end
+
+  describe ".assistant_fetch_html_response" do
+    it "returns the direct response when proxy fallback is not needed" do
+      Onebox::Helpers.stubs(:assistant_fetch_direct_html_response).returns(
+        "<p>direct</p>"
+      )
+      DiscourseOneboxAssistant::ProxyService
+        .any_instance
+        .expects(:page_source)
+        .never
+
+      response =
+        Onebox::Helpers.send(
+          :assistant_fetch_html_response,
+          "https://example.com",
+          nil
+        )
+
+      expect(response).to eq("<p>direct</p>")
+    end
+
+    it "falls back to the proxy service when the direct response is missing" do
+      Onebox::Helpers.stubs(:assistant_fetch_direct_html_response).returns(nil)
+
+      DiscourseOneboxAssistant::ProxyService
+        .any_instance
+        .expects(:page_source)
+        .with("https://example.com")
+        .returns("<p>proxy</p>")
+
+      response =
+        Onebox::Helpers.send(
+          :assistant_fetch_html_response,
+          "https://example.com",
+          nil
+        )
+
+      expect(response).to eq("<p>proxy</p>")
+    end
+  end
+
   describe ".fetch_html_doc" do
     it "uses the canonical URL for the proxy follow-up request" do
       original_url = "https://www.example.com/post"
@@ -56,24 +123,21 @@ RSpec.describe Onebox::Helpers do
         .stubs(:resolve)
         .returns(Addressable::URI.parse(canonical_url))
 
-      Onebox::Helpers::ProxyService
+      DiscourseOneboxAssistant::ProxyService
         .any_instance
-        .expects(:get_page_data)
+        .expects(:page_source)
         .with(original_url)
         .once
         .returns(
-          {
-            "source" =>
-              "<!DOCTYPE html><link rel='canonical' href='#{canonical_url}'><p>invalid</p>"
-          }
+          "<!DOCTYPE html><link rel='canonical' href='#{canonical_url}'><p>invalid</p>"
         )
 
-      Onebox::Helpers::ProxyService
+      DiscourseOneboxAssistant::ProxyService
         .any_instance
-        .expects(:get_page_data)
+        .expects(:page_source)
         .with(canonical_url)
         .once
-        .returns({ "source" => "<!DOCTYPE html><p>success</p>" })
+        .returns("<!DOCTYPE html><p>success</p>")
 
       doc = Onebox::Helpers.fetch_html_doc(original_url)
 
