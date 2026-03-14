@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "cgi"
 require "httparty"
 
 module ::DiscourseOneboxAssistant
@@ -23,7 +24,7 @@ module ::DiscourseOneboxAssistant
       [
         SiteSetting.onebox_assistant_api_base_address,
         SiteSetting.onebox_assistant_api_base_query,
-        url,
+        CGI.escape(url.to_s),
         SiteSetting.onebox_assistant_api_options
       ].join
     end

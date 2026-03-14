@@ -145,3 +145,29 @@ RSpec.describe Onebox::Helpers do
     end
   end
 end
+
+RSpec.describe DiscourseOneboxAssistant::ProxyService do
+  before do
+    SiteSetting.onebox_assistant_api_base_address = "https://proxy.example.com"
+    SiteSetting.onebox_assistant_api_base_query = "?url="
+    SiteSetting.onebox_assistant_api_options = "&render_js=false"
+    SiteSetting.onebox_assistant_api_page_source_field = "source"
+    SiteSetting.onebox_assistant_api_key = "secret"
+  end
+
+  describe "#page_source" do
+    it "escapes the target URL before calling the proxy service" do
+      target_url = "https://www.example.com/path?a=1&b=two words#fragment"
+
+      HTTParty
+        .expects(:get)
+        .with(
+          "https://proxy.example.com?url=https%3A%2F%2Fwww.example.com%2Fpath%3Fa%3D1%26b%3Dtwo+words%23fragment&render_js=false",
+          headers: { "x-api-key" => "secret" }
+        )
+        .returns({ "source" => "<p>proxy</p>" })
+
+      expect(described_class.new.page_source(target_url)).to eq("<p>proxy</p>")
+    end
+  end
+end
