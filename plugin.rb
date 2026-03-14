@@ -4,7 +4,7 @@
 # authors: merefield
 # url: https://github.com/merefield/discourse-onebox-assistant
 
-gem 'httparty', '0.21.0'
+gem 'httparty', '0.24.2'
 
 require 'net/http'
 
