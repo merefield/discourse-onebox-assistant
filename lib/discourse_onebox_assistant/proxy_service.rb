@@ -7,7 +7,16 @@ module ::DiscourseOneboxAssistant
   class ProxyService
     def page_source(url)
       response = HTTParty.get(request_url(url), headers: request_headers)
-      response[
+
+      unless response.success? && response.parsed_response.is_a?(Hash)
+        Rails.logger.warn(
+          "ONEBOX ASSIST: unexpected response for #{url} " \
+            "(status=#{response.code}, body=#{response.body.to_s.byteslice(0, 300)})"
+        )
+        return nil
+      end
+
+      response.parsed_response[
         SiteSetting.onebox_assistant_api_page_source_field
       ].tap do |page_source|
         if page_source.nil?

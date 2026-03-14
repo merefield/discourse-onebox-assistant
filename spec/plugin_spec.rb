@@ -158,6 +158,13 @@ RSpec.describe DiscourseOneboxAssistant::ProxyService do
   describe "#page_source" do
     it "escapes the target URL before calling the proxy service" do
       target_url = "https://www.example.com/path?a=1&b=two words#fragment"
+      response =
+        stub(
+          success?: true,
+          parsed_response: { "source" => "<p>proxy</p>" },
+          code: 200,
+          body: '{"source":"<p>proxy</p>"}'
+        )
 
       HTTParty
         .expects(:get)
@@ -165,9 +172,40 @@ RSpec.describe DiscourseOneboxAssistant::ProxyService do
           "https://proxy.example.com?url=https%3A%2F%2Fwww.example.com%2Fpath%3Fa%3D1%26b%3Dtwo+words%23fragment&render_js=false",
           headers: { "x-api-key" => "secret" }
         )
-        .returns({ "source" => "<p>proxy</p>" })
+        .returns(response)
 
       expect(described_class.new.page_source(target_url)).to eq("<p>proxy</p>")
+    end
+
+    it "returns nil when the proxy response is unsuccessful" do
+      response =
+        stub(success?: false, parsed_response: nil, code: 500, body: "server error")
+
+      HTTParty.expects(:get).returns(response)
+      Rails.logger.expects(:warn).with(
+        "ONEBOX ASSIST: unexpected response for https://example.com " \
+          "(status=500, body=server error)"
+      )
+
+      expect(described_class.new.page_source("https://example.com")).to eq(nil)
+    end
+
+    it "returns nil when the proxy response is not a hash" do
+      response =
+        stub(
+          success?: true,
+          parsed_response: "<html>not json</html>",
+          code: 200,
+          body: "<html>not json</html>"
+        )
+
+      HTTParty.expects(:get).returns(response)
+      Rails.logger.expects(:warn).with(
+        "ONEBOX ASSIST: unexpected response for https://example.com " \
+          "(status=200, body=<html>not json</html>)"
+      )
+
+      expect(described_class.new.page_source("https://example.com")).to eq(nil)
     end
   end
 end
